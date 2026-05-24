@@ -1,33 +1,37 @@
 import mongoose from "mongoose";
 
+let isConnected = false;
+
 const connectDB = async () => {
   try {
+    // Check environment variable
     if (!process.env.MONGODB_URI) {
       throw new Error("MONGODB_URI is missing in environment variables");
     }
 
-    // Prevent multiple connections in nodemon / hot reload
-    if (mongoose.connection.readyState === 1) {
+    // Reuse existing connection
+    if (isConnected || mongoose.connection.readyState === 1) {
       console.log("MongoDB already connected");
-      return;
+      return mongoose.connection;
     }
 
-    // Connection events (only attach once)
-    mongoose.connection.on("connected", () => {
-      console.log("Database Connected");
+    // Connect to MongoDB
+    const connection = await mongoose.connect(process.env.MONGODB_URI, {
+      bufferCommands: false,
     });
 
-    mongoose.connection.on("error", (err) => {
-      console.error("MongoDB connection error:", err);
-    });
+    isConnected = true;
 
-    // Connect to DB
-    await mongoose.connect(process.env.MONGODB_URI);
+    console.log(
+      `MongoDB Connected: ${connection.connection.host}`
+    );
 
-    console.log("MongoDB connection successful");
+    return connection;
   } catch (error) {
-    console.error("MongoDB Connection Error:", error.message);
-    process.exit(1);
+    console.error("MongoDB Connection Error:", error);
+
+    // DO NOT use process.exit() on Vercel
+    throw error;
   }
 };
 

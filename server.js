@@ -9,16 +9,20 @@ import userRouter from "./routes/userRoutes.js";
 
 const app = express();
 
-// ⚠️ FIX: prevent multiple DB connections in Vercel
+// Connect DB once per serverless instance
 let isConnected = false;
-const initDB = async () => {
-  if (!isConnected) {
-    await connectDB();
-    isConnected = true;
-  }
-};
 
-await initDB();
+app.use(async (req, res, next) => {
+  try {
+    if (!isConnected) {
+      await connectDB();
+      isConnected = true;
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.use(express.json());
 app.use(cookieParser());
@@ -31,20 +35,24 @@ app.use(
 );
 
 app.get("/", (req, res) => {
-  res.json({ success: true, message: "API Working" });
+  res.status(200).json({
+    success: true,
+    message: "API Working",
+  });
 });
 
 app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
 
+// Error handler
 app.use((err, req, res, next) => {
-  console.error(err);
+  console.error("Server Error:", err);
+
   res.status(500).json({
     success: false,
-    message: err.message,
+    message: err.message || "Internal Server Error",
   });
 });
 
-// 🚨 IMPORTANT: NO app.listen()
-
+// DO NOT use app.listen() on Vercel
 export default app;
